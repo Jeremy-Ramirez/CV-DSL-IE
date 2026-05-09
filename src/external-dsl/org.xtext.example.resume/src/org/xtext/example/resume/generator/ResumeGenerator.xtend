@@ -31,63 +31,84 @@ class ResumeGenerator extends AbstractGenerator {
 
 		val requiredTags = getRequiredTagsFromJson(jsonPath)
 		
+		// 1. Capturamos el idioma objetivo
+		var targetLang = "es"
+		if (profile.customization.language !== null) {
+			targetLang = profile.customization.language.replace("\"", "").trim().toLowerCase()
+		}
+
 		val matchedJobs = new ArrayList<Job>()
 		val omittedJobs = new ArrayList<Job>()
 		val matchedProjects = new ArrayList<Project>()
 		val omittedProjects = new ArrayList<Project>()
-		val matchedEducation = new ArrayList<Degree>()
+		val allEducation = new ArrayList<Degree>()
 
+		// 2. FILTRADO DOBLE (Primero por Idioma, luego por Tags)
 		for (section : profile.sections) {
 			switch (section) {
 				Experience: {
-					for (job : section.jobs) {
-						if (matchesTags(job.tags.values, requiredTags)) matchedJobs.add(job) 
-						else omittedJobs.add(job)
+					if (section.language !== null && section.language.replace("\"", "").trim().toLowerCase() == targetLang) {
+						for (job : section.jobs) {
+							if (matchesTags(job.tags.values, requiredTags)) matchedJobs.add(job) 
+							else omittedJobs.add(job)
+						}
 					}
 				}
 				Projects: {
-					for (proj : section.projects) {
-						if (matchesTags(proj.tags.values, requiredTags)) matchedProjects.add(proj) 
-						else omittedProjects.add(proj)
+					if (section.language !== null && section.language.replace("\"", "").trim().toLowerCase() == targetLang) {
+						for (proj : section.projects) {
+							if (matchesTags(proj.tags.values, requiredTags)) matchedProjects.add(proj) 
+							else omittedProjects.add(proj)
+						}
 					}
 				}
 				Education: {
-					for (degree : section.degrees) {
-						if (matchesTags(degree.tags.values, requiredTags)) matchedEducation.add(degree)
+					if (section.language !== null && section.language.replace("\"", "").trim().toLowerCase() == targetLang) {
+						allEducation.addAll(section.degrees)
 					}
 				}
 			}
 		}
 
-		// CALCULAR EL PORCENTAJE DE MATCH
-		val matchPercentage = calculateMatchPercentage(profile, requiredTags)
+		// 3. Calculamos porcentaje usando solo los tags del idioma objetivo
+		val matchPercentage = calculateMatchPercentage(profile, requiredTags, targetLang)
 
-		fsa.generateFile("Dashboard_CV.html", generateHTML(profile, requiredTags, matchPercentage, matchedJobs, omittedJobs, matchedProjects, omittedProjects, matchedEducation))
+		fsa.generateFile("Dashboard_CV.html", generateHTML(profile, requiredTags, matchPercentage, matchedJobs, omittedJobs, matchedProjects, omittedProjects, allEducation, targetLang))
 	}
 
-	def int calculateMatchPercentage(Profile profile, List<String> requiredTags) {
+	def int calculateMatchPercentage(Profile profile, List<String> requiredTags, String targetLang) {
 		if (requiredTags.empty) return 100
-		
-		// Usamos un HashSet para recolectar los tags del usuario sin duplicados
 		val userTags = new HashSet<String>()
 		
 		for (section : profile.sections) {
 			switch (section) {
-				Experience: section.jobs.forEach[j | j.tags.values.forEach[t | userTags.add(t.replace("\"", "").trim().toLowerCase())]]
-				Projects: section.projects.forEach[p | p.tags.values.forEach[t | userTags.add(t.replace("\"", "").trim().toLowerCase())]]
-				Skills: section.skills.forEach[s | s.tags.values.forEach[t | userTags.add(t.replace("\"", "").trim().toLowerCase())]]
-				Education: section.degrees.forEach[d | d.tags.values.forEach[t | userTags.add(t.replace("\"", "").trim().toLowerCase())]]
+				Experience: {
+					if (section.language !== null && section.language.replace("\"", "").trim().toLowerCase() == targetLang) {
+						section.jobs.forEach[j | j.tags.values.forEach[t | userTags.add(t.replace("\"", "").trim().toLowerCase())]]
+					}
+				}
+				Projects: {
+					if (section.language !== null && section.language.replace("\"", "").trim().toLowerCase() == targetLang) {
+						section.projects.forEach[p | p.tags.values.forEach[t | userTags.add(t.replace("\"", "").trim().toLowerCase())]]
+					}
+				}
+				Skills: {
+					if (section.language !== null && section.language.replace("\"", "").trim().toLowerCase() == targetLang) {
+						section.skills.forEach[s | s.tags.values.forEach[t | userTags.add(t.replace("\"", "").trim().toLowerCase())]]
+					}
+				}
+				Education: {
+					if (section.language !== null && section.language.replace("\"", "").trim().toLowerCase() == targetLang) {
+						section.degrees.forEach[d | d.tags.values.forEach[t | userTags.add(t.replace("\"", "").trim().toLowerCase())]]
+					}
+				}
 			}
 		}
-
-		// Contar cuántos de los requiredTags están en los userTags
+		
 		var matchCount = 0
 		for (reqTag : requiredTags) {
-			if (userTags.contains(reqTag)) {
-				matchCount++
-			}
+			if (userTags.contains(reqTag)) matchCount++
 		}
-
 		return (matchCount * 100) / requiredTags.size
 	}
 
@@ -112,9 +133,9 @@ class ResumeGenerator extends AbstractGenerator {
 		return false
 	}
 
-	def CharSequence generateHTML(Profile profile, List<String> requiredTags, int matchPercentage, List<Job> mJobs, List<Job> oJobs, List<Project> mProj, List<Project> oProj, List<Degree> mEdu) '''
+	def CharSequence generateHTML(Profile profile, List<String> requiredTags, int matchPercentage, List<Job> mJobs, List<Job> oJobs, List<Project> mProj, List<Project> oProj, List<Degree> allEdu, String lang) '''
 		<!DOCTYPE html>
-		<html>
+		<html lang="«lang»">
 		<head>
 			<meta charset="UTF-8">
 			<style>
@@ -122,35 +143,35 @@ class ResumeGenerator extends AbstractGenerator {
 				.card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; border: 1px solid #e1e4e8; }
 				.dashboard { border-left: 8px solid «IF matchPercentage >= 80»#2ecc71«ELSEIF matchPercentage >= 50»#f39c12«ELSE»#e74c3c«ENDIF»; background: #fef9e7; }
 				.cv-header { text-align: center; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
-				h2 { color: #2c3e50; border-bottom: 1px solid #eee; }
+				h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 5px; }
 				.tag-box { display: inline-block; background: #e8f4fd; color: #2980b9; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-right: 5px; margin-top: 5px;}
 				.omitted-item { color: #c0392b; font-size: 0.9em; margin-bottom: 5px; }
-				
-				/* Estilos para la barra de progreso */
 				.progress-container { width: 100%; background-color: #ddd; border-radius: 8px; margin: 15px 0; overflow: hidden; }
 				.progress-bar { height: 24px; text-align: center; color: white; font-weight: bold; line-height: 24px;
 					background-color: «IF matchPercentage >= 80»#2ecc71«ELSEIF matchPercentage >= 50»#f39c12«ELSE»#e74c3c«ENDIF»; 
 					width: «matchPercentage»%; 
 				}
+				.edu-item { margin-bottom: 10px; padding-left: 10px; border-left: 3px solid #95a5a6; }
 			</style>
 		</head>
 		<body>
 			<div class="card dashboard">
-				<h2>📊 Análisis de Compatibilidad</h2>
-				<p><b>Tags Requeridos:</b> «String.join(", ", requiredTags)»</p>
+				<h2>«IF lang == 'en'»📊 Analysis Dashboard«ELSE»📊 Dashboard de Análisis«ENDIF»</h2>
+				<p><b>«IF lang == 'en'»Target Offer:«ELSE»Oferta Objetivo:«ENDIF»</b> «profile.customization.jobOfferPath.replace("\"", "")»</p>
+				<p><b>«IF lang == 'en'»Required Tags:«ELSE»Tags Requeridos:«ENDIF»</b> «String.join(", ", requiredTags)»</p>
 				
 				<h3>Match Score: «matchPercentage»%</h3>
 				<div class="progress-container">
 					<div class="progress-bar">«IF matchPercentage > 10»«matchPercentage»%«ENDIF»</div>
 				</div>
 				
-				<h4>Elementos descartados por falta de match:</h4>
+				<h4>«IF lang == 'en'»Elements omitted from the final CV:«ELSE»Elementos omitidos en el CV final:«ENDIF»</h4>
 				<ul>
 					«IF oJobs.empty && oProj.empty»
-						<li style="color: green;">¡Excelente! Todo tu historial hace match con esta oferta.</li>
+						<li style="color: green;">«IF lang == 'en'»Perfect! Your experience and projects are a 100% match.«ELSE»¡Perfecto! Tu experiencia y proyectos encajan al 100%.«ENDIF»</li>
 					«ELSE»
-						«FOR j : oJobs»<li class="omitted-item">Experiencia: «j.title.replace("\"", "")»</li>«ENDFOR»
-						«FOR p : oProj»<li class="omitted-item">Proyecto: «p.title.replace("\"", "")»</li>«ENDFOR»
+						«FOR j : oJobs»<li class="omitted-item">«IF lang == 'en'»Experience:«ELSE»Experiencia:«ENDIF» «j.title.replace("\"", "")»</li>«ENDFOR»
+						«FOR p : oProj»<li class="omitted-item">«IF lang == 'en'»Project:«ELSE»Proyecto:«ENDIF» «p.title.replace("\"", "")»</li>«ENDFOR»
 					«ENDIF»
 				</ul>
 			</div>
@@ -159,34 +180,39 @@ class ResumeGenerator extends AbstractGenerator {
 				<div class="cv-header">
 					<h1>«profile.userdata.name.replace("\"", "")»</h1>
 					<p>«profile.userdata.email.replace("\"", "")» | «profile.userdata.telephoneNumber.replace("\"", "")»</p>
+					<p>«profile.userdata.direction.replace("\"", "")», «profile.userdata.city.replace("\"", "")», «profile.userdata.country.replace("\"", "")»</p>
 				</div>
 
+				«IF !allEdu.empty»
+					<h2>«IF lang == 'en'»🎓 Academic Background«ELSE»🎓 Formación Académica«ENDIF»</h2>
+					«FOR e : allEdu»
+						<div class="edu-item">
+							<b>«e.title.replace("\"", "")»</b><br>
+							«e.institution.replace("\"", "")» | «e.graduationDate.replace("\"", "")»
+						</div>
+					«ENDFOR»
+				«ENDIF»
+
 				«IF !mProj.empty»
-					<h2>🚀 Proyectos Seleccionados</h2>
+					<h2>«IF lang == 'en'»🚀 Selected Projects«ELSE»🚀 Proyectos Seleccionados«ENDIF»</h2>
 					«FOR p : mProj»
-						<div>
-							<b>«p.title.replace("\"", "")»</b> - <a href="#">«p.link.replace("\"", "")»</a>
-							<p>«String.join(", ", p.description.values)»</p>
+						<div style="margin-bottom: 15px;">
+							<b>«p.title.replace("\"", "")»</b> - <small>«p.link.replace("\"", "")»</small>
+							<p style="margin: 5px 0;">«String.join(", ", p.description.values)»</p>
 							<div>«FOR t : p.tags.values»<span class="tag-box">«t»</span>«ENDFOR»</div>
 						</div>
 					«ENDFOR»
 				«ENDIF»
 
 				«IF !mJobs.empty»
-					<h2>💼 Experiencia Profesional Relevante</h2>
+					<h2>«IF lang == 'en'»💼 Relevant Professional Experience«ELSE»💼 Experiencia Profesional Relevante«ENDIF»</h2>
 					«FOR j : mJobs»
-						<div style="margin-bottom: 15px;">
-							<b>«j.title.replace("\"", "")»</b> en <i>«j.company.replace("\"", "")»</i>
+						<div style="margin-bottom: 20px;">
+							<b>«j.title.replace("\"", "")»</b> | <i>«j.company.replace("\"", "")»</i>
 							<br><small>«j.startDate.replace("\"", "")» - «j.endDate.replace("\"", "")»</small>
+							<p style="margin: 5px 0;">«String.join(", ", j.description.values)»</p>
 							<div>«FOR t : j.tags.values»<span class="tag-box">«t»</span>«ENDFOR»</div>
 						</div>
-					«ENDFOR»
-				«ENDIF»
-
-				«IF !mEdu.empty»
-					<h2>🎓 Educación Relacionada</h2>
-					«FOR e : mEdu»
-						<p><b>«e.title.replace("\"", "")»</b> - «e.institution.replace("\"", "")» («e.graduationDate.replace("\"", "")»)</p>
 					«ENDFOR»
 				«ENDIF»
 			</div>

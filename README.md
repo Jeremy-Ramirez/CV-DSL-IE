@@ -50,4 +50,4 @@ Transformar el DSL de Currículum actual en una herramienta de análisis estáti
 - [ ] **Lógica de Filtrado Estricto:**
   - Implementar el algoritmo que descarta bloques de `Experience` o `Project` que no coincidan con los `requiredTags`.
 - [ ] **Generador de CV (HTML/PDF):**
-  - Producir el documento final "limpio" solo con la información relevante para
+  - Producir el documento final "limpio" solo con la información relevante

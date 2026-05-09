@@ -75,7 +75,6 @@ Languages:
     'Languages' 'language:' language=STRING 'tags:' tags=StringList
 ;
 
-
 Metrics:
     'Metrics' 'language:' language=STRING metrics+=Metric+
 ;
@@ -83,7 +82,6 @@ Metrics:
 Metric:
     'Metric' name=STRING '=' expression=Expression
 ;
-
 
 Expression:
     Subtraction
@@ -100,38 +98,9 @@ NumberLiteral returns Expression:
 ;
 
 Customization:
-    'Customization' 'include' 'Profile' 'where' 'language' language=STRING rules+=Rule*
-;
-
-Rule:
-    'include' sectionType=SectionType 'where' filter=Filter
-;
-
-enum SectionType:
-    EXPERIENCE='Experience' | 
-    PROJECTS='Projects' | 
-    EDUCATION='Education' | 
-    SKILLS='Skills' | 
-    INTERESTS='Interests' | 
-    LANGUAGES='Languages' |
-    METRICS='Metrics'
-;
-
-
-Filter:
-    GeneralFilter | TemporalFilter | AllFilter
-;
-
-GeneralFilter:
-    'tags' 'include' tag=STRING
-;
-
-TemporalFilter:
-    ('startDate' 'after' startDate=Date) | ('endDate' 'before' endDate=Date)
-;
-
-AllFilter:
-    {AllFilter} 'all'
+    'Customization' 
+    'language:' language=STRING 
+    'targetJobOffer:' jobOfferPath=STRING
 ;
 
 StringList:

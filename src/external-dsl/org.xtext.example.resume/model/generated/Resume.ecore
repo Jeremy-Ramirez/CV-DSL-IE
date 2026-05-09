@@ -99,32 +99,8 @@
   <eClassifiers xsi:type="ecore:EClass" name="Expression"/>
   <eClassifiers xsi:type="ecore:EClass" name="Customization">
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="language" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="rules" upperBound="-1"
-        eType="#//Rule" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="jobOfferPath" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
   </eClassifiers>
-  <eClassifiers xsi:type="ecore:EClass" name="Rule">
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="sectionType" eType="#//SectionType"/>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="filter" eType="#//Filter"
-        containment="true"/>
-  </eClassifiers>
-  <eClassifiers xsi:type="ecore:EEnum" name="SectionType">
-    <eLiterals name="EXPERIENCE" literal="Experience"/>
-    <eLiterals name="PROJECTS" value="1" literal="Projects"/>
-    <eLiterals name="EDUCATION" value="2" literal="Education"/>
-    <eLiterals name="SKILLS" value="3" literal="Skills"/>
-    <eLiterals name="INTERESTS" value="4" literal="Interests"/>
-    <eLiterals name="LANGUAGES" value="5" literal="Languages"/>
-    <eLiterals name="METRICS" value="6" literal="Metrics"/>
-  </eClassifiers>
-  <eClassifiers xsi:type="ecore:EClass" name="Filter"/>
-  <eClassifiers xsi:type="ecore:EClass" name="GeneralFilter" eSuperTypes="#//Filter">
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="tag" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
-  </eClassifiers>
-  <eClassifiers xsi:type="ecore:EClass" name="TemporalFilter" eSuperTypes="#//Filter">
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="startDate" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
-    <eStructuralFeatures xsi:type="ecore:EAttribute" name="endDate" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
-  </eClassifiers>
-  <eClassifiers xsi:type="ecore:EClass" name="AllFilter" eSuperTypes="#//Filter"/>
   <eClassifiers xsi:type="ecore:EClass" name="StringList">
     <eStructuralFeatures xsi:type="ecore:EAttribute" name="values" unique="false"
         upperBound="-1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>

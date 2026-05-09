@@ -3,17 +3,284 @@
  */
 package org.xtext.example.resume.generator;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.eclipse.emf.common.util.EList;
+import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
+import org.eclipse.xtend2.lib.StringConcatenation;
 import org.eclipse.xtext.generator.AbstractGenerator;
 import org.eclipse.xtext.generator.IFileSystemAccess2;
 import org.eclipse.xtext.generator.IGeneratorContext;
+import org.eclipse.xtext.xbase.lib.Exceptions;
+import org.eclipse.xtext.xbase.lib.IterableExtensions;
+import org.xtext.example.resume.resume.Experience;
+import org.xtext.example.resume.resume.Job;
+import org.xtext.example.resume.resume.Profile;
+import org.xtext.example.resume.resume.Section;
 
-/**
- * Generates code from your model files on save.
- */
 @SuppressWarnings("all")
 public class ResumeGenerator extends AbstractGenerator {
   @Override
   public void doGenerate(final Resource resource, final IFileSystemAccess2 fsa, final IGeneratorContext context) {
+    EObject _head = IterableExtensions.<EObject>head(resource.getContents());
+    final Profile profile = ((Profile) _head);
+    if ((((profile == null) || (profile.getCustomization() == null)) || (profile.getCustomization().getJobOfferPath() == null))) {
+      return;
+    }
+    final String jsonPath = profile.getCustomization().getJobOfferPath().replace("\"", "").trim();
+    final File file = new File(jsonPath);
+    if (((!file.exists()) || file.isDirectory())) {
+      return;
+    }
+    final List<String> requiredTags = this.getRequiredTagsFromJson(jsonPath);
+    final ArrayList<Job> matchedJobs = new ArrayList<Job>();
+    final ArrayList<Job> omittedJobs = new ArrayList<Job>();
+    EList<Section> _sections = profile.getSections();
+    for (final Section section : _sections) {
+      if ((section instanceof Experience)) {
+        EList<Job> _jobs = ((Experience)section).getJobs();
+        for (final Job job : _jobs) {
+          boolean _matchesTags = this.matchesTags(job.getTags().getValues(), requiredTags);
+          if (_matchesTags) {
+            matchedJobs.add(job);
+          } else {
+            omittedJobs.add(job);
+          }
+        }
+      }
+    }
+    fsa.generateFile("Dashboard_CV.html", this.generateHTML(profile, requiredTags, matchedJobs, omittedJobs));
+  }
+
+  public List<String> getRequiredTagsFromJson(final String path) {
+    final ArrayList<String> tags = new ArrayList<String>();
+    try {
+      byte[] _readAllBytes = Files.readAllBytes(Paths.get(path));
+      final String content = new String(_readAllBytes);
+      final Matcher matcher = Pattern.compile("\"requiredTags\"\\s*:\\s*\\[(.*?)\\]").matcher(content);
+      boolean _find = matcher.find();
+      if (_find) {
+        final String[] rawTags = matcher.group(1).split(",");
+        for (final String tag : rawTags) {
+          tags.add(tag.replace("\"", "").trim().toLowerCase());
+        }
+      }
+    } catch (final Throwable _t) {
+      if (_t instanceof Exception) {
+      } else {
+        throw Exceptions.sneakyThrow(_t);
+      }
+    }
+    return tags;
+  }
+
+  public boolean matchesTags(final List<String> elementTags, final List<String> requiredTags) {
+    if (((elementTags == null) || elementTags.isEmpty())) {
+      return false;
+    }
+    for (final String tag : elementTags) {
+      boolean _contains = requiredTags.contains(tag.replace("\"", "").trim().toLowerCase());
+      if (_contains) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public CharSequence generateHTML(final Profile profile, final List<String> requiredTags, final List<Job> matchedJobs, final List<Job> omittedJobs) {
+    StringConcatenation _builder = new StringConcatenation();
+    _builder.append("<!DOCTYPE html>");
+    _builder.newLine();
+    _builder.append("<html lang=\"es\">");
+    _builder.newLine();
+    _builder.append("<head>");
+    _builder.newLine();
+    _builder.append("\t");
+    _builder.append("<meta charset=\"UTF-8\">");
+    _builder.newLine();
+    _builder.append("\t");
+    _builder.append("<title>CV Dashboard Analytics</title>");
+    _builder.newLine();
+    _builder.append("\t");
+    _builder.append("<style>");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append("body { font-family: ");
+    String _replace = profile.getMetadata().getFont().replace("\"", "");
+    _builder.append(_replace, "\t\t");
+    _builder.append(", sans-serif; background-color: #f4f7f6; padding: 20px; }");
+    _builder.newLineIfNotEmpty();
+    _builder.append("\t\t");
+    _builder.append(".container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0,0,0,0.1); }");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append(".dashboard { background: #ffeaa7; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 5px solid #fdcb6e; }");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append(".dashboard h2 { margin-top: 0; color: #d63031; }");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append(".omitted { color: #d63031; font-size: 0.9em; }");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append(".cv-section { border-top: 2px solid #eee; padding-top: 20px; }");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append(".job { margin-bottom: 20px; }");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append(".job h3 { margin: 0; color: #0984e3; }");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append(".tags { font-size: 0.8em; background: #dfe6e9; padding: 3px 8px; border-radius: 4px; }");
+    _builder.newLine();
+    _builder.append("\t");
+    _builder.append("</style>");
+    _builder.newLine();
+    _builder.append("</head>");
+    _builder.newLine();
+    _builder.append("<body>");
+    _builder.newLine();
+    _builder.append("\t");
+    _builder.append("<div class=\"container\">");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append("<div class=\"dashboard\">");
+    _builder.newLine();
+    _builder.append("\t\t\t");
+    _builder.append("<h2>\ud83d\udcca Dashboard de Análisis Estático</h2>");
+    _builder.newLine();
+    _builder.append("\t\t\t");
+    _builder.append("<p><strong>Tags requeridos por la oferta:</strong> ");
+    String _join = String.join(", ", requiredTags);
+    _builder.append(_join, "\t\t\t");
+    _builder.append("</p>");
+    _builder.newLineIfNotEmpty();
+    _builder.append("\t\t\t");
+    _builder.newLine();
+    _builder.append("\t\t\t");
+    _builder.append("<h3>Elementos Omitidos (No hicieron match):</h3>");
+    _builder.newLine();
+    _builder.append("\t\t\t");
+    _builder.append("<ul>");
+    _builder.newLine();
+    {
+      boolean _isEmpty = omittedJobs.isEmpty();
+      if (_isEmpty) {
+        _builder.append("\t\t\t\t");
+        _builder.append("<li>¡Perfecto! Toda tu experiencia hace match con la oferta.</li>");
+        _builder.newLine();
+      } else {
+        {
+          for(final Job job : omittedJobs) {
+            _builder.append("\t\t\t\t");
+            _builder.append("<li class=\"omitted\">Se omitió <b>");
+            String _replace_1 = job.getTitle().replace("\"", "");
+            _builder.append(_replace_1, "\t\t\t\t");
+            _builder.append("</b> en ");
+            String _replace_2 = job.getCompany().replace("\"", "");
+            _builder.append(_replace_2, "\t\t\t\t");
+            _builder.append(" porque sus tags no coinciden con los requeridos.</li>");
+            _builder.newLineIfNotEmpty();
+          }
+        }
+      }
+    }
+    _builder.append("\t\t\t");
+    _builder.append("</ul>");
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append("</div>");
+    _builder.newLine();
+    _builder.newLine();
+    _builder.append("\t\t");
+    _builder.append("<div class=\"cv-section\">");
+    _builder.newLine();
+    _builder.append("\t\t\t");
+    _builder.append("<h1>Currículum Generado para: ");
+    String _replace_3 = profile.getUserdata().getName().replace("\"", "");
+    _builder.append(_replace_3, "\t\t\t");
+    _builder.append("</h1>");
+    _builder.newLineIfNotEmpty();
+    _builder.append("\t\t\t");
+    _builder.append("<p>Email: ");
+    String _replace_4 = profile.getUserdata().getEmail().replace("\"", "");
+    _builder.append(_replace_4, "\t\t\t");
+    _builder.append(" | Ciudad: ");
+    String _replace_5 = profile.getUserdata().getCity().replace("\"", "");
+    _builder.append(_replace_5, "\t\t\t");
+    _builder.append("</p>");
+    _builder.newLineIfNotEmpty();
+    _builder.append("\t\t\t");
+    _builder.newLine();
+    _builder.append("\t\t\t");
+    _builder.append("<h2>Experiencia Relevante</h2>");
+    _builder.newLine();
+    {
+      boolean _isEmpty_1 = matchedJobs.isEmpty();
+      if (_isEmpty_1) {
+        _builder.append("\t\t\t");
+        _builder.append("<p>No se encontró experiencia relevante para esta oferta.</p>");
+        _builder.newLine();
+      } else {
+        {
+          for(final Job job_1 : matchedJobs) {
+            _builder.append("\t\t\t");
+            _builder.append("<div class=\"job\">");
+            _builder.newLine();
+            _builder.append("\t\t\t");
+            _builder.append("\t");
+            _builder.append("<h3>");
+            String _replace_6 = job_1.getTitle().replace("\"", "");
+            _builder.append(_replace_6, "\t\t\t\t");
+            _builder.append(" en ");
+            String _replace_7 = job_1.getCompany().replace("\"", "");
+            _builder.append(_replace_7, "\t\t\t\t");
+            _builder.append("</h3>");
+            _builder.newLineIfNotEmpty();
+            _builder.append("\t\t\t");
+            _builder.append("\t");
+            _builder.append("<p><i>");
+            String _replace_8 = job_1.getStartDate().replace("\"", "");
+            _builder.append(_replace_8, "\t\t\t\t");
+            _builder.append(" hasta ");
+            String _replace_9 = job_1.getEndDate().replace("\"", "");
+            _builder.append(_replace_9, "\t\t\t\t");
+            _builder.append("</i></p>");
+            _builder.newLineIfNotEmpty();
+            _builder.append("\t\t\t");
+            _builder.append("\t");
+            _builder.append("<p><span class=\"tags\">Tags: ");
+            String _join_1 = String.join(", ", job_1.getTags().getValues());
+            _builder.append(_join_1, "\t\t\t\t");
+            _builder.append("</span></p>");
+            _builder.newLineIfNotEmpty();
+            _builder.append("\t\t\t");
+            _builder.append("</div>");
+            _builder.newLine();
+          }
+        }
+      }
+    }
+    _builder.append("\t\t");
+    _builder.append("</div>");
+    _builder.newLine();
+    _builder.newLine();
+    _builder.append("\t");
+    _builder.append("</div>");
+    _builder.newLine();
+    _builder.append("</body>");
+    _builder.newLine();
+    _builder.append("</html>");
+    _builder.newLine();
+    return _builder;
   }
 }

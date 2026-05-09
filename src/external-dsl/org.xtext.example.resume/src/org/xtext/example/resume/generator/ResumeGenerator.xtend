@@ -7,14 +7,140 @@ import org.eclipse.emf.ecore.resource.Resource
 import org.eclipse.xtext.generator.AbstractGenerator
 import org.eclipse.xtext.generator.IFileSystemAccess2
 import org.eclipse.xtext.generator.IGeneratorContext
+import org.xtext.example.resume.resume.Profile
+import org.xtext.example.resume.resume.Experience
+import org.xtext.example.resume.resume.Job
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.util.regex.Pattern
+import java.util.List
+import java.util.ArrayList
 
-/**
- * Generates code from your model files on save.
- */
 class ResumeGenerator extends AbstractGenerator {
 
 	override void doGenerate(Resource resource, IFileSystemAccess2 fsa, IGeneratorContext context) {
-		// TODO: Aquí implementaremos la lectura del JSON y la generación estricta en la Fase 4.
-		// Por ahora lo dejamos vacío para que el proyecto compile sin errores.
+		val profile = resource.contents.head as Profile
+		
+		// 1. Verificaciones de seguridad
+		if (profile === null || profile.customization === null || profile.customization.jobOfferPath === null) {
+			return
+		}
+
+		val jsonPath = profile.customization.jobOfferPath.replace("\"", "").trim()
+		val file = new java.io.File(jsonPath)
+		if (!file.exists() || file.isDirectory()) return
+
+		// 2. Extraer los Required Tags del JSON usando Regex
+		val requiredTags = getRequiredTagsFromJson(jsonPath)
+		
+		// 3. Listas para separar lo que hace Match y lo que se Omite
+		val matchedJobs = new ArrayList<Job>()
+		val omittedJobs = new ArrayList<Job>()
+
+		// 4. Algoritmo de Filtrado Estricto (Ejemplo con Experience)
+		for (section : profile.sections) {
+			if (section instanceof Experience) {
+				for (job : section.jobs) {
+					if (matchesTags(job.tags.values, requiredTags)) {
+						matchedJobs.add(job)
+					} else {
+						omittedJobs.add(job)
+					}
+				}
+			}
+		}
+
+		// 5. Generar el Archivo HTML Final
+		fsa.generateFile("Dashboard_CV.html", generateHTML(profile, requiredTags, matchedJobs, omittedJobs))
 	}
+
+	// --- MÉTODOS AUXILIARES ---
+
+	def List<String> getRequiredTagsFromJson(String path) {
+		val tags = new ArrayList<String>()
+		try {
+			val content = new String(Files.readAllBytes(Paths.get(path)))
+			val matcher = Pattern.compile("\"requiredTags\"\\s*:\\s*\\[(.*?)\\]").matcher(content)
+			if (matcher.find()) {
+				val rawTags = matcher.group(1).split(",")
+				for (tag : rawTags) {
+					tags.add(tag.replace("\"", "").trim().toLowerCase())
+				}
+			}
+		} catch (Exception e) {}
+		return tags
+	}
+
+	def boolean matchesTags(List<String> elementTags, List<String> requiredTags) {
+		if (elementTags === null || elementTags.empty) return false
+		// Si al menos un tag del elemento coincide con los del JSON, es un Match
+		for (tag : elementTags) {
+			if (requiredTags.contains(tag.replace("\"", "").trim().toLowerCase())) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// --- GENERACIÓN DE HTML (TEMPLATE) ---
+
+	def CharSequence generateHTML(Profile profile, List<String> requiredTags, List<Job> matchedJobs, List<Job> omittedJobs) '''
+		<!DOCTYPE html>
+		<html lang="es">
+		<head>
+			<meta charset="UTF-8">
+			<title>CV Dashboard Analytics</title>
+			<style>
+				body { font-family: «profile.metadata.font.replace("\"", "")», sans-serif; background-color: #f4f7f6; padding: 20px; }
+				.container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0,0,0,0.1); }
+				.dashboard { background: #ffeaa7; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 5px solid #fdcb6e; }
+				.dashboard h2 { margin-top: 0; color: #d63031; }
+				.omitted { color: #d63031; font-size: 0.9em; }
+				.cv-section { border-top: 2px solid #eee; padding-top: 20px; }
+				.job { margin-bottom: 20px; }
+				.job h3 { margin: 0; color: #0984e3; }
+				.tags { font-size: 0.8em; background: #dfe6e9; padding: 3px 8px; border-radius: 4px; }
+			</style>
+		</head>
+		<body>
+			<div class="container">
+				
+				<div class="dashboard">
+					<h2>📊 Dashboard de Análisis Estático</h2>
+					<p><strong>Tags requeridos por la oferta:</strong> «String.join(", ", requiredTags)»</p>
+					
+					<h3>Elementos Omitidos (No hicieron match):</h3>
+					<ul>
+						«IF omittedJobs.empty»
+							<li>¡Perfecto! Toda tu experiencia hace match con la oferta.</li>
+						«ELSE»
+							«FOR job : omittedJobs»
+								<li class="omitted">Se omitió <b>«job.title.replace("\"", "")»</b> en «job.company.replace("\"", "")» porque sus tags no coinciden con los requeridos.</li>
+							«ENDFOR»
+						«ENDIF»
+					</ul>
+				</div>
+
+				<div class="cv-section">
+					<h1>Currículum Generado para: «profile.userdata.name.replace("\"", "")»</h1>
+					<p>Email: «profile.userdata.email.replace("\"", "")» | Ciudad: «profile.userdata.city.replace("\"", "")»</p>
+					
+					<h2>Experiencia Relevante</h2>
+					«IF matchedJobs.empty»
+						<p>No se encontró experiencia relevante para esta oferta.</p>
+					«ELSE»
+						«FOR job : matchedJobs»
+							<div class="job">
+								<h3>«job.title.replace("\"", "")» en «job.company.replace("\"", "")»</h3>
+								<p><i>«job.startDate.replace("\"", "")» hasta «job.endDate.replace("\"", "")»</i></p>
+								<p><span class="tags">Tags: «String.join(", ", job.tags.values)»</span></p>
+							</div>
+						«ENDFOR»
+					«ENDIF»
+				</div>
+
+			</div>
+		</body>
+		</html>
+	'''
 }
